@@ -48,7 +48,83 @@ app.get('/dashboard', (c) => {
 
 app.get('/health', (c) => jsonResponse({ status: 'ok' }));
 
-// ---- 管理后台 API ----
+// ---- 公开 API（无需认证，必须在 adminRoutes 之前注册） ----
+
+// Login URL 生成
+app.get('/api/login-url', async (c) => {
+  const callbackUrl = c.req.query('callback_url') || `${new URL(c.req.url).origin}/oauth/callback`;
+  const client = new AccioClient({
+    baseUrl: c.env.ACCIO_BASE_URL || 'https://phoenix-gw.alibaba.com',
+    version: c.env.ACCIO_VERSION || '2.3.2',
+  });
+  const url = client.buildLoginUrl(callbackUrl);
+  // 同时返回 url 和 data.url，兼容注册机脚本（读 resp.url）和前端（读 resp.data.url）
+  return jsonResponse({ success: true, url, data: { url } });
+});
+
+// OAuth 导入回调地址接口
+app.post('/api/oauth/import-callback', async (c) => {
+  const body = await c.req.json<{ callbackUrl: string }>();
+  if (!body.callbackUrl) {
+    return jsonResponse({ success: false, message: '缺少 callbackUrl 参数' }, 400);
+  }
+
+  let url: URL;
+  try {
+    url = new URL(body.callbackUrl);
+  } catch {
+    return jsonResponse({ success: false, message: 'callbackUrl 格式无效' }, 400);
+  }
+
+  const sp = url.searchParams;
+  const hashStr = url.hash.startsWith('#') ? url.hash.slice(1) : '';
+  const hp = new URLSearchParams(hashStr);
+
+  const accessToken = sp.get('access_token') || sp.get('accessToken') || hp.get('access_token') || hp.get('accessToken') || '';
+  const refreshToken = sp.get('refresh_token') || sp.get('refreshToken') || hp.get('refresh_token') || hp.get('refreshToken') || '';
+  const expiresAt = sp.get('expires_at') || sp.get('expiresAt') || hp.get('expires_at') || hp.get('expiresAt') || '';
+
+  if (!accessToken || !refreshToken) {
+    return jsonResponse({ success: false, message: 'URL 中未找到 accessToken 和 refreshToken 参数' }, 400);
+  }
+
+  const { account, created } = await upsertFromCallback(c.env.DB, {
+    accessToken,
+    refreshToken,
+    expiresAt: expiresAt || undefined,
+    cookie: null,
+  });
+
+  const client = new AccioClient({
+    baseUrl: c.env.ACCIO_BASE_URL || 'https://phoenix-gw.alibaba.com',
+    version: c.env.ACCIO_VERSION || '2.3.2',
+  });
+
+  const quotaResult = await client.queryQuota(account);
+  if (!quotaResult.success) {
+    if (created) {
+      await deleteAccount(c.env.DB, account.id);
+    }
+    return jsonResponse({
+      success: false,
+      message: `账号验证失败，无法获取额度: ${String(quotaResult.message || '未知错误')}。${created ? '账号未保存。' : ''}`,
+    });
+  }
+
+  if (created) {
+    c.executionCtx.waitUntil(
+      client.activateAccount(account).catch(() => {}),
+    );
+  }
+
+  return jsonResponse({
+    success: true,
+    created,
+    message: created ? '账号已添加、验证通过并开始激活' : '账号 Token 已更新，验证通过',
+  });
+});
+
+// ---- 管理后台 API（需要认证） ----
 app.route('/api', adminRoutes);
 
 // ---- 代理 API 路由 ----
@@ -120,82 +196,6 @@ app.post('/oauth/callback', async (c) => {
     created,
     message: created ? '账号已添加、验证通过并开始激活' : '账号 Token 已更新，验证通过',
   });
-});
-
-// ---- OAuth 导入回调地址接口 ----
-app.post('/api/oauth/import-callback', async (c) => {
-  const body = await c.req.json<{ callbackUrl: string }>();
-  if (!body.callbackUrl) {
-    return jsonResponse({ success: false, message: '缺少 callbackUrl 参数' }, 400);
-  }
-
-  // 从完整回调 URL 中解析 token
-  let url: URL;
-  try {
-    url = new URL(body.callbackUrl);
-  } catch {
-    return jsonResponse({ success: false, message: 'callbackUrl 格式无效' }, 400);
-  }
-
-  const sp = url.searchParams;
-  const hashStr = url.hash.startsWith('#') ? url.hash.slice(1) : '';
-  const hp = new URLSearchParams(hashStr);
-
-  const accessToken = sp.get('access_token') || sp.get('accessToken') || hp.get('access_token') || hp.get('accessToken') || '';
-  const refreshToken = sp.get('refresh_token') || sp.get('refreshToken') || hp.get('refresh_token') || hp.get('refreshToken') || '';
-  const expiresAt = sp.get('expires_at') || sp.get('expiresAt') || hp.get('expires_at') || hp.get('expiresAt') || '';
-
-  if (!accessToken || !refreshToken) {
-    return jsonResponse({ success: false, message: 'URL 中未找到 accessToken 和 refreshToken 参数' }, 400);
-  }
-
-  // 复用现有的 upsert + 验证逻辑
-  const { account, created } = await upsertFromCallback(c.env.DB, {
-    accessToken,
-    refreshToken,
-    expiresAt: expiresAt || undefined,
-    cookie: null,
-  });
-
-  const client = new AccioClient({
-    baseUrl: c.env.ACCIO_BASE_URL || 'https://phoenix-gw.alibaba.com',
-    version: c.env.ACCIO_VERSION || '2.3.2',
-  });
-
-  const quotaResult = await client.queryQuota(account);
-  if (!quotaResult.success) {
-    if (created) {
-      await deleteAccount(c.env.DB, account.id);
-    }
-    return jsonResponse({
-      success: false,
-      message: `账号验证失败，无法获取额度: ${String(quotaResult.message || '未知错误')}。${created ? '账号未保存。' : ''}`,
-    });
-  }
-
-  if (created) {
-    c.executionCtx.waitUntil(
-      client.activateAccount(account).catch(() => {}),
-    );
-  }
-
-  return jsonResponse({
-    success: true,
-    created,
-    message: created ? '账号已添加、验证通过并开始激活' : '账号 Token 已更新，验证通过',
-  });
-});
-
-// ---- Login URL 生成 ----
-app.get('/api/login-url', async (c) => {
-  const callbackUrl = c.req.query('callback_url') || `${new URL(c.req.url).origin}/oauth/callback`;
-  const client = new AccioClient({
-    baseUrl: c.env.ACCIO_BASE_URL || 'https://phoenix-gw.alibaba.com',
-    version: c.env.ACCIO_VERSION || '2.3.2',
-  });
-  const url = client.buildLoginUrl(callbackUrl);
-  // 同时返回 url 和 data.url，兼容注册机脚本（读 resp.url）和前端（读 resp.data.url）
-  return jsonResponse({ success: true, url, data: { url } });
 });
 
 // ---- 404 ----
