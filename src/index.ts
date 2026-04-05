@@ -11,8 +11,10 @@ import proxyApiRoutes from './routes/proxy-api';
 import modelRoutes from './routes/models';
 import { handleScheduledEvent } from './services/quota-checker';
 import { AccioClient } from './services/accio-client';
-import { upsertFromCallback } from './db/accounts';
+import { upsertFromCallback, deleteAccount } from './db/accounts';
 import { jsonResponse } from './utils';
+// @ts-ignore — Wrangler 将 .html 作为 Text 模块导入
+import DASHBOARD_HTML from '../public/index.html';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -24,12 +26,18 @@ app.use('*', cors({
   exposeHeaders: ['x-accio-account-id', 'x-accio-account-strategy', 'x-accio-account-remaining'],
 }));
 
-// ---- Health check ----
-app.get('/', (c) => jsonResponse({
-  name: 'accio-worker',
-  status: 'ok',
-  message: 'Accio Worker is running',
-}));
+// ---- 管理面板（根路径） ----
+app.get('/', (c) => {
+  return new Response(DASHBOARD_HTML, {
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  });
+});
+
+app.get('/dashboard', (c) => {
+  return new Response(DASHBOARD_HTML, {
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  });
+});
 
 app.get('/health', (c) => jsonResponse({ status: 'ok' }));
 
@@ -69,12 +77,26 @@ app.post('/oauth/callback', async (c) => {
     cookie: body.cookie || null,
   });
 
+  const client = new AccioClient({
+    baseUrl: c.env.ACCIO_BASE_URL || 'https://phoenix-gw.alibaba.com',
+    version: c.env.ACCIO_VERSION || '2.3.2',
+  });
+
+  // 导入验证：检查能否获取额度
+  const quotaResult = await client.queryQuota(account);
+  if (!quotaResult.success) {
+    // 额度获取失败 → 如果是新建的账号则删除
+    if (created) {
+      await deleteAccount(c.env.DB, account.id);
+    }
+    return jsonResponse({
+      success: false,
+      message: `账号验证失败，无法获取额度: ${String(quotaResult.message || '未知错误')}。${created ? '账号未保存。' : ''}`,
+    });
+  }
+
   // 自动激活新账号
   if (created) {
-    const client = new AccioClient({
-      baseUrl: c.env.ACCIO_BASE_URL || 'https://phoenix-gw.alibaba.com',
-      version: c.env.ACCIO_VERSION || '2.3.2',
-    });
     c.executionCtx.waitUntil(
       client.activateAccount(account).catch(() => {}),
     );
@@ -83,7 +105,7 @@ app.post('/oauth/callback', async (c) => {
   return jsonResponse({
     success: true,
     created,
-    message: created ? '账号已添加并开始激活' : '账号 Token 已更新',
+    message: created ? '账号已添加、验证通过并开始激活' : '账号 Token 已更新，验证通过',
   });
 });
 

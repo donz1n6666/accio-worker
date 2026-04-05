@@ -26,6 +26,12 @@ ACCIO_VERSION = "0.5.4"
 # 管理员密码请用 secret 设置：
 # wrangler secret put ADMIN_PASSWORD
 
+# ---- 静态资源作为文本模块导入 ----
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = false
+
 # ---- 定时任务: 每5分钟巡检额度 ----
 [triggers]
 crons = ["*/5 * * * *"]
