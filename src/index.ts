@@ -50,17 +50,20 @@ app.get('/health', (c) => jsonResponse({ status: 'ok' }));
 
 // ---- 公开 API（无需认证，必须在 adminRoutes 之前注册） ----
 
-// Login URL 生成
-app.get('/api/login-url', async (c) => {
-  const callbackUrl = c.req.query('callback_url') || `${new URL(c.req.url).origin}/oauth/callback`;
+// Login URL 生成（回调地址固定为本机地址，与原 FastAPI 项目保持一致）
+const loginLinkHandler = async (c: any) => {
+  const callbackHost = c.env.ACCIO_CALLBACK_HOST || '127.0.0.1';
+  const callbackPort = c.env.ACCIO_CALLBACK_PORT || '4097';
+  const callbackUrl = `http://${callbackHost}:${callbackPort}/auth/callback`;
   const client = new AccioClient({
     baseUrl: c.env.ACCIO_BASE_URL || 'https://phoenix-gw.alibaba.com',
-    version: c.env.ACCIO_VERSION || '2.3.2',
+    version: c.env.ACCIO_VERSION || '0.5.4',
   });
   const url = client.buildLoginUrl(callbackUrl);
-  // 同时返回 url 和 data.url，兼容注册机脚本（读 resp.url）和前端（读 resp.data.url）
-  return jsonResponse({ success: true, url, data: { url } });
-});
+  return jsonResponse({ success: true, url, callbackUrl });
+};
+app.get('/api/login-link', loginLinkHandler);
+app.get('/api/login-url', loginLinkHandler);
 
 // OAuth 导入回调地址接口
 app.post('/api/oauth/import-callback', async (c) => {
@@ -97,7 +100,7 @@ app.post('/api/oauth/import-callback', async (c) => {
 
   const client = new AccioClient({
     baseUrl: c.env.ACCIO_BASE_URL || 'https://phoenix-gw.alibaba.com',
-    version: c.env.ACCIO_VERSION || '2.3.2',
+    version: c.env.ACCIO_VERSION || '0.5.4',
   });
 
   const quotaResult = await client.queryQuota(account);
@@ -168,7 +171,7 @@ app.post('/oauth/callback', async (c) => {
 
   const client = new AccioClient({
     baseUrl: c.env.ACCIO_BASE_URL || 'https://phoenix-gw.alibaba.com',
-    version: c.env.ACCIO_VERSION || '2.3.2',
+    version: c.env.ACCIO_VERSION || '0.5.4',
   });
 
   // 导入验证：检查能否获取额度
@@ -429,14 +432,13 @@ const OAUTH_CALLBACK_HTML = `<!DOCTYPE html>
   let loginUrlStr = '';
 
   async function initLoginMode() {
-    const callbackUrl = window.location.origin + '/oauth/callback';
-    document.getElementById('callback-url').textContent = callbackUrl;
     try {
-      const r = await fetch('/api/login-url?callback_url=' + encodeURIComponent(callbackUrl));
+      const r = await fetch('/api/login-link');
       const d = await r.json();
-      if (d.success && d.data && d.data.url) {
-        loginUrlStr = d.data.url;
+      if (d.success && d.url) {
+        loginUrlStr = d.url;
         document.getElementById('login-url').textContent = loginUrlStr;
+        document.getElementById('callback-url').textContent = d.callbackUrl || '';
       } else {
         document.getElementById('login-url').textContent = '获取失败，请刷新重试';
       }

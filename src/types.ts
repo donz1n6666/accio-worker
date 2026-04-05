@@ -6,6 +6,8 @@ export interface Env {
   ADMIN_PASSWORD?: string;
   ACCIO_BASE_URL?: string;
   ACCIO_VERSION?: string;
+  ACCIO_CALLBACK_HOST?: string;
+  ACCIO_CALLBACK_PORT?: string;
 }
 
 // ---- Account ----
