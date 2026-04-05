@@ -27,9 +27,9 @@ app.use('*', cors({
   exposeHeaders: ['x-accio-account-id', 'x-accio-account-strategy', 'x-accio-account-remaining'],
 }));
 
-// ---- 自动数据库迁移（首次请求时执行） ----
+// ---- 自动数据库迁移（首次请求时同步等待完成） ----
 app.use('*', async (c, next) => {
-  c.executionCtx.waitUntil(autoMigrate(c.env.DB, c.env.KV));
+  await autoMigrate(c.env.DB, c.env.KV);
   await next();
 });
 

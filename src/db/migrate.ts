@@ -104,6 +104,7 @@ INSERT OR IGNORE INTO global_stats (key, value) VALUES ('last_stop_reason', '');
 /**
  * 检查并执行自动迁移
  * 使用 KV 存储迁移版本号，避免每次请求都执行
+ * D1 的 exec() 支持一次执行多条 SQL 语句
  */
 export async function autoMigrate(db: D1Database, kv: KVNamespace): Promise<void> {
   try {
@@ -115,25 +116,11 @@ export async function autoMigrate(db: D1Database, kv: KVNamespace): Promise<void
 
     console.log(`[migrate] 执行数据库迁移 v${MIGRATION_VERSION}...`);
 
-    // 逐条执行建表语句（D1 不支持多语句批量执行）
-    const statements = MIGRATION_SQL
-      .split(';')
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
-
-    for (const sql of statements) {
-      await db.exec(sql);
-    }
+    // D1 exec() 支持多语句，一次性执行建表 + 索引
+    await db.exec(MIGRATION_SQL);
 
     // 执行种子数据
-    const seedStatements = SEED_SQL
-      .split(';')
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
-
-    for (const sql of seedStatements) {
-      await db.exec(sql);
-    }
+    await db.exec(SEED_SQL);
 
     // 标记迁移完成
     await kv.put(KV_KEY, MIGRATION_VERSION);

@@ -221,7 +221,7 @@ th { background:#f9fafb; color:var(--muted); font-weight:500; font-size:12px; }
 
 </div>
 <script>
-let API_KEY = '';
+let API_KEY = sessionStorage.getItem('accio_api_key') || '';
 const API = (path, opts={}) => fetch(`/api${path}`, {
   ...opts,
   headers: { 'Content-Type':'application/json', 'x-api-key': API_KEY, ...(opts.headers||{}) },
@@ -232,10 +232,9 @@ document.getElementById('password-input').addEventListener('keydown', e => {
   if(e.key==='Enter') doLogin();
 });
 
-async function doLogin() {
-  const pwd = document.getElementById('password-input').value.trim();
-  if(!pwd) return;
-  API_KEY = pwd;
+// 页面加载时自动恢复登录状态
+(async function autoRestore() {
+  if(!API_KEY) return;
   try {
     const r = await API('/settings');
     const d = await r.json();
@@ -245,15 +244,42 @@ async function doLogin() {
       loadSettings(d.data);
       refreshAccounts();
     } else {
+      // 密码失效，清除
+      API_KEY='';
+      sessionStorage.removeItem('accio_api_key');
+    }
+  } catch(e) {
+    API_KEY='';
+    sessionStorage.removeItem('accio_api_key');
+  }
+})();
+
+async function doLogin() {
+  const pwd = document.getElementById('password-input').value.trim();
+  if(!pwd) return;
+  API_KEY = pwd;
+  try {
+    const r = await API('/settings');
+    const d = await r.json();
+    if(d.success) {
+      sessionStorage.setItem('accio_api_key', API_KEY);
+      document.getElementById('login-page').style.display='none';
+      document.getElementById('app').style.display='block';
+      loadSettings(d.data);
+      refreshAccounts();
+    } else {
+      API_KEY='';
       document.getElementById('login-error').textContent = '密码错误';
     }
   } catch(e) {
+    API_KEY='';
     document.getElementById('login-error').textContent = '连接失败: '+e.message;
   }
 }
 
 function logout() {
   API_KEY='';
+  sessionStorage.removeItem('accio_api_key');
   document.getElementById('app').style.display='none';
   document.getElementById('login-page').style.display='flex';
   document.getElementById('password-input').value='';
@@ -314,7 +340,7 @@ async function checkQuota(id) {
 }
 
 function addAccountByOAuth() {
-  window.open('/api/login-url?callback_url='+encodeURIComponent(location.origin+'/oauth/callback'));
+  window.open('/oauth', '_blank');
 }
 
 // --- API Keys ---
@@ -450,6 +476,7 @@ async function saveSettings() {
     alert('设置已保存');
     if(body.adminPassword && body.adminPassword !== API_KEY) {
       API_KEY = body.adminPassword;
+      sessionStorage.setItem('accio_api_key', API_KEY);
     }
   } else {
     alert(d.message||'保存失败');
