@@ -14,7 +14,9 @@
 - **统计面板** — 调用次数、Token 用量、按模型/账号维度统计
 - **API Key 管理** — 创建/删除 Key，可限制可用模型
 - **定时巡检** — Cron Trigger 每 5 分钟检查额度，自动禁用/恢复
-- **自动建表** — 首次启动自动初始化数据库，一键部署无需手动迁移
+- **自动建表** — 首次访问自动初始化数据库，一键部署无需手动迁移
+- **OAuth 登录** — 支持立即登录、复制登录链接、手动导入回调地址
+- **注册机兼容** — 提供 `/api/login-url` 和 `/api/oauth/import-callback` 公开接口
 - **全球边缘** — Workers 部署，无需额外代理
 
 ## 兼容的 API 端点
@@ -28,6 +30,16 @@
 | `POST /v1beta/models/{model}:generateContent` | Gemini | Google AI 格式 |
 | `POST /v1beta/models/{model}:streamGenerateContent` | Gemini Stream | 流式 |
 | `GET /v1beta/models` | Gemini Models | Gemini 模型列表 |
+
+## 页面路由
+
+| 路径 | 说明 |
+|------|------|
+| `/` | 管理面板（需管理员密码登录） |
+| `/dashboard` | 管理面板（同上） |
+| `/oauth` | OAuth 登录页（立即登录 / 复制链接 / 手动导入回调） |
+| `/oauth/callback` | OAuth 回调处理（自动或手动导入） |
+| `/health` | 健康检查 |
 
 ## 快速部署
 
@@ -75,25 +87,21 @@ npx wrangler d1 create accio-db
 npx wrangler kv namespace create "KV"
 # 将输出的 id 填入 wrangler.toml
 
-# 5. 初始化数据库
-npx wrangler d1 execute accio-db --remote --file=./migrations/0001_init.sql
-
-# 6. (可选) 设置管理员密码
-npx wrangler secret put ADMIN_PASSWORD
-
-# 7. 部署
+# 5. 部署（数据库表会在首次访问时自动创建）
 npx wrangler deploy
 ```
 
-### 方式四：GitHub Actions 自动部署
+> 也可以手动初始化数据库：`npx wrangler d1 execute accio-db --remote --file=./migrations/0001_init.sql`
+
+### 方式四：GitHub Actions 手动部署
 
 1. Fork 本仓库
 2. 在仓库 Settings → Secrets and variables → Actions 中添加：
    - `CLOUDFLARE_API_TOKEN` — [创建 API Token](https://dash.cloudflare.com/profile/api-tokens)（需要 Workers 编辑权限）
    - `CLOUDFLARE_ACCOUNT_ID` — 你的 Cloudflare Account ID
-3. 推送到 `main` 或 `master` 分支即自动部署
+3. 前往 Actions 页面，手动点击 **Run workflow** 触发部署
 
-> **注意：** 首次部署前需手动创建 D1 和 KV 资源（步骤 3-5），之后的代码更新会自动部署。
+> **注意：** 首次部署前需手动创建 D1 和 KV 资源（步骤 3-4），之后的代码更新通过 Actions 手动触发部署。
 
 ## 使用方式
 
@@ -101,7 +109,13 @@ npx wrangler deploy
 
 部署后访问 Worker URL 根路径（如 `https://accio-worker.your-name.workers.dev`），输入管理员密码登录。
 
-默认密码：`admin`（请尽快修改）
+默认密码：`admin`（请尽快在设置中修改）
+
+### 添加账号
+
+- **方式一：** 管理面板点击「+ 添加账号」→ 跳转 OAuth 登录页
+- **方式二：** 直接访问 `/oauth` → 立即登录 / 复制登录链接
+- **方式三：** 使用注册机脚本自动导入（见下方接口）
 
 ### API 调用
 
@@ -136,13 +150,30 @@ curl https://your-worker.workers.dev/v1beta/models/claude-sonnet-4-6:generateCon
   }'
 ```
 
+### 注册机脚本接口
+
+以下接口无需认证，供自动化脚本使用：
+
+```python
+# 获取登录链接
+resp = requests.get(f"{WORKER_URL}/api/login-url")
+login_url = resp.json()["url"]  # 或 resp.json()["data"]["url"]
+
+# 导入回调地址（将完整回调 URL 发送给后端解析）
+resp = requests.post(
+    f"{WORKER_URL}/api/oauth/import-callback",
+    json={"callbackUrl": "http://127.0.0.1:4097/auth/callback?accessToken=...&refreshToken=..."}
+)
+print(resp.json())  # {"success": true, "message": "账号已添加、验证通过并开始激活"}
+```
+
 ## 配置说明
 
 ### 环境变量
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `ADMIN_PASSWORD` | 管理员密码（建议通过 `wrangler secret` 设置） | `admin` |
+| `ADMIN_PASSWORD` | 管理员密码 | `admin` |
 | `ACCIO_BASE_URL` | 上游 API 地址 | `https://phoenix-gw.alibaba.com` |
 | `ACCIO_VERSION` | 客户端版本号 | `0.5.4` |
 
@@ -151,7 +182,7 @@ curl https://your-worker.workers.dev/v1beta/models/claude-sonnet-4-6:generateCon
 | 资源 | 类型 | 用途 |
 |------|------|------|
 | `DB` | D1 (SQLite) | 账号、API Key、统计、日志 |
-| `KV` | KV Store | 设置缓存、模型目录缓存 |
+| `KV` | KV Store | 设置缓存、模型目录缓存、迁移状态 |
 
 ## 项目结构
 
@@ -160,15 +191,16 @@ accio-worker/
 ├── wrangler.toml              # Workers 配置
 ├── deploy.sh                  # 一键部署脚本
 ├── migrations/
-│   └── 0001_init.sql          # D1 表结构
+│   └── 0001_init.sql          # D1 表结构（手动迁移用）
 ├── public/
 │   └── index.html             # 管理面板 SPA
 ├── src/
-│   ├── index.ts               # 入口 + 路由注册
+│   ├── index.ts               # 入口 + 路由注册 + OAuth 页面
 │   ├── types.ts               # TypeScript 类型
 │   ├── auth.ts                # 双层认证
 │   ├── utils.ts               # 工具函数
 │   ├── db/
+│   │   ├── migrate.ts         # 自动建表迁移
 │   │   ├── accounts.ts        # 账号 CRUD
 │   │   ├── api-keys.ts        # API Key CRUD
 │   │   ├── stats.ts           # 统计
@@ -178,7 +210,7 @@ accio-worker/
 │   │   ├── sse-transform.ts   # SSE 流式转换
 │   │   └── scheduler.ts       # 账号调度
 │   ├── routes/
-│   │   ├── admin.ts           # 管理 API
+│   │   ├── admin.ts           # 管理 API（需认证）
 │   │   ├── proxy-api.ts       # 代理路由
 │   │   └── models.ts          # 模型列表
 │   └── services/
@@ -186,7 +218,7 @@ accio-worker/
 │       ├── model-catalog.ts   # 模型目录
 │       └── quota-checker.ts   # 额度巡检
 └── .github/workflows/
-    └── deploy.yml             # GitHub Actions
+    └── deploy.yml             # GitHub Actions（手动触发）
 ```
 
 ## 技术栈
