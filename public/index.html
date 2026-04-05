@@ -312,7 +312,7 @@ async function refreshAccounts() {
       <td><strong>${esc(a.name)}</strong></td>
       <td>${statusBadge}</td>
       <td>${a.fillPriority}</td>
-      <td>${a.lastRemainingQuota!==null?a.lastRemainingQuota+'%':'-'}</td>
+      <td>${a.lastRemainingQuota!==null?a.lastRemainingQuota:'-'}</td>
       <td>
         <button class="btn btn-ghost btn-sm" onclick="toggleAccount('${a.id}',${!enabled})">${enabled?'禁用':'启用'}</button>
         <button class="btn btn-ghost btn-sm" onclick="checkQuota('${a.id}')">查额度</button>

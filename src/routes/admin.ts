@@ -33,6 +33,7 @@ import {
 import { getSnapshot } from '../db/stats';
 import { getRecentLogs } from '../db/logs';
 import { AccioClient } from '../services/accio-client';
+import { parseQuotaFromData } from '../services/quota-checker';
 import { getModelCatalog } from '../services/model-catalog';
 
 const admin = new Hono<{ Bindings: Env }>();
@@ -192,6 +193,28 @@ admin.post('/accounts/:id/check-quota', async (c) => {
   });
 
   const result = await client.queryQuota(account);
+  if (result.success) {
+    const data = result.data as Record<string, unknown> | undefined;
+    const quota = parseQuotaFromData(data || {});
+
+    // 更新数据库中的额度值
+    await c.env.DB.prepare(
+      'UPDATE accounts SET last_quota_check_at = ?, last_remaining_quota = ?, updated_at = ? WHERE id = ?',
+    ).bind(
+      Math.floor(Date.now() / 1000),
+      quota.remaining,
+      new Date().toISOString().replace('T', ' ').slice(0, 19),
+      c.req.param('id'),
+    ).run();
+
+    return jsonResponse({
+      success: true,
+      total: quota.total,
+      remaining: quota.remaining,
+      used: quota.used,
+      remainingText: quota.total > 0 ? `${quota.remaining}/${quota.total}` : String(quota.remaining),
+    });
+  }
   return jsonResponse(result);
 });
 
