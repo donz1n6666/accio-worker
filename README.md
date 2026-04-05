@@ -234,6 +234,10 @@ accio-worker/
 - **Cache**: Cloudflare KV
 - **Language**: TypeScript
 
+## 友情链接
+
+- [LINUX DO](https://linux.do) — 真诚、友善、团结、专业，共建你我引以为荣的社区
+
 ## License
 
 MIT
