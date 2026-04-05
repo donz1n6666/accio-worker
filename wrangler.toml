@@ -22,9 +22,7 @@ id = "REPLACE_WITH_YOUR_KV_ID"
 [vars]
 ACCIO_BASE_URL = "https://phoenix-gw.alibaba.com"
 ACCIO_VERSION = "0.5.4"
-
-# 管理员密码请用 secret 设置：
-# wrangler secret put ADMIN_PASSWORD
+ADMIN_PASSWORD = "admin"
 
 # ---- 静态资源作为文本模块导入 ----
 [[rules]]
