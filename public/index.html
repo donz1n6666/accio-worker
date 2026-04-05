@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Accio Worker Panel</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root { --bg:#f5f5f5; --card:#fff; --border:#e5e7eb; --primary:#3b82f6; --danger:#ef4444;
+  --success:#22c55e; --text:#333; --muted:#888; --radius:8px; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:var(--bg); color:var(--text); line-height:1.5; }
+.container { max-width:1000px; margin:0 auto; padding:20px; }
+header { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; }
+header h1 { font-size:22px; }
+header .actions { display:flex; gap:8px; }
+
+/* Login */
+#login-page { display:flex; justify-content:center; align-items:center; min-height:80vh; }
+.login-card { background:var(--card); border-radius:var(--radius); padding:32px; width:360px;
+  box-shadow:0 2px 12px rgba(0,0,0,.06); }
+.login-card h2 { margin-bottom:16px; text-align:center; }
+.login-card input { width:100%; padding:10px 12px; border:1px solid var(--border);
+  border-radius:6px; font-size:14px; margin-bottom:12px; }
+
+/* Tabs */
+.tabs { display:flex; gap:4px; border-bottom:2px solid var(--border); margin-bottom:20px; }
+.tab { padding:8px 16px; cursor:pointer; border:none; background:none; font-size:14px;
+  color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-2px; }
+.tab.active { color:var(--primary); border-bottom-color:var(--primary); font-weight:600; }
+
+/* Card */
+.card { background:var(--card); border-radius:var(--radius); padding:20px;
+  box-shadow:0 1px 4px rgba(0,0,0,.04); margin-bottom:16px; }
+.card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+.card-title { font-size:16px; font-weight:600; }
+
+/* Table */
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th,td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); }
+th { background:#f9fafb; color:var(--muted); font-weight:500; font-size:12px; }
+
+/* Buttons */
+.btn { padding:6px 14px; border:none; border-radius:6px; cursor:pointer; font-size:13px;
+  font-weight:500; transition:opacity .15s; }
+.btn:hover { opacity:.85; }
+.btn-primary { background:var(--primary); color:#fff; }
+.btn-danger { background:var(--danger); color:#fff; }
+.btn-ghost { background:transparent; color:var(--primary); border:1px solid var(--border); }
+.btn-sm { padding:4px 10px; font-size:12px; }
+
+/* Status badge */
+.badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:500; }
+.badge-success { background:#dcfce7; color:#166534; }
+.badge-danger { background:#fee2e2; color:#991b1b; }
+.badge-warning { background:#fef3c7; color:#92400e; }
+
+/* Form */
+.form-row { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+.form-row label { font-size:13px; min-width:80px; }
+.form-row input,.form-row select { flex:1; padding:6px 10px; border:1px solid var(--border);
+  border-radius:6px; font-size:13px; }
+
+/* Modal */
+.modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.3);
+  display:flex; justify-content:center; align-items:center; z-index:100; }
+.modal { background:var(--card); border-radius:var(--radius); padding:24px; width:420px;
+  max-height:80vh; overflow-y:auto; box-shadow:0 8px 32px rgba(0,0,0,.12); }
+.modal h3 { margin-bottom:16px; }
+.modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
+
+/* Stats */
+.stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:20px; }
+.stat-card { text-align:center; padding:16px; background:#f9fafb; border-radius:var(--radius); }
+.stat-value { font-size:24px; font-weight:700; color:var(--primary); }
+.stat-label { font-size:12px; color:var(--muted); margin-top:4px; }
+
+/* Copy */
+.copyable { cursor:pointer; position:relative; }
+.copyable:hover::after { content:'Click to copy'; position:absolute; top:-24px; left:0;
+  background:#333; color:#fff; padding:2px 6px; border-radius:4px; font-size:11px; white-space:nowrap; }
+
+/* Key display */
+.key-display { background:#f0f9ff; border:1px dashed var(--primary); border-radius:6px;
+  padding:12px; font-family:monospace; font-size:13px; word-break:break-all; margin:12px 0; }
+
+/* Responsive */
+@media(max-width:640px) {
+  .container { padding:12px; }
+  .stats-grid { grid-template-columns:repeat(2,1fr); }
+  table { font-size:12px; }
+  th,td { padding:6px; }
+}
+
+#app { display:none; }
+.hidden { display:none!important; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- Login Page -->
+<div id="login-page">
+  <div class="login-card">
+    <h2>Accio Worker</h2>
+    <input type="password" id="password-input" placeholder="管理员密码" autofocus>
+    <button class="btn btn-primary" style="width:100%" onclick="doLogin()">登录</button>
+    <p id="login-error" style="color:var(--danger);font-size:13px;margin-top:8px;text-align:center"></p>
+  </div>
+</div>
+
+<!-- Main App -->
+<div id="app">
+  <header>
+    <h1>Accio Worker Panel</h1>
+    <div class="actions">
+      <button class="btn btn-ghost btn-sm" onclick="addAccountByOAuth()">+ 添加账号</button>
+      <button class="btn btn-ghost btn-sm" onclick="logout()">退出</button>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="accounts">账号管理</button>
+    <button class="tab" data-tab="keys">API Key</button>
+    <button class="tab" data-tab="stats">统计</button>
+    <button class="tab" data-tab="logs">日志</button>
+    <button class="tab" data-tab="settings">设置</button>
+  </div>
+
+  <!-- Accounts Tab -->
+  <div id="tab-accounts" class="tab-content">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">账号列表</span>
+        <button class="btn btn-primary btn-sm" onclick="refreshAccounts()">刷新</button>
+      </div>
+      <table>
+        <thead><tr>
+          <th>名称</th><th>状态</th><th>优先级</th><th>额度</th><th>操作</th>
+        </tr></thead>
+        <tbody id="accounts-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- API Keys Tab -->
+  <div id="tab-keys" class="tab-content hidden">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">API Key 列表</span>
+        <button class="btn btn-primary btn-sm" onclick="showCreateKeyModal()">+ 创建 Key</button>
+      </div>
+      <table>
+        <thead><tr>
+          <th>名称</th><th>Key前缀</th><th>状态</th><th>调用次数</th><th>最后使用</th><th>操作</th>
+        </tr></thead>
+        <tbody id="keys-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Stats Tab -->
+  <div id="tab-stats" class="tab-content hidden">
+    <div id="stats-container"></div>
+  </div>
+
+  <!-- Logs Tab -->
+  <div id="tab-logs" class="tab-content hidden">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">最近日志</span>
+        <button class="btn btn-ghost btn-sm" onclick="refreshLogs()">刷新</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th>时间</th><th>事件</th><th>账号</th><th>模型</th><th>状态</th><th>Token</th><th>耗时</th>
+          </tr></thead>
+          <tbody id="logs-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Tab -->
+  <div id="tab-settings" class="tab-content hidden">
+    <div class="card">
+      <div class="card-title" style="margin-bottom:16px">全局设置</div>
+      <div class="form-row">
+        <label>管理员密码</label>
+        <input id="s-admin-password" type="text">
+      </div>
+      <div class="form-row">
+        <label>调度策略</label>
+        <select id="s-strategy">
+          <option value="round_robin">轮询</option>
+          <option value="fill">优先填充</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>额度耗尽自动禁用</label>
+        <input id="s-auto-disable" type="checkbox">
+      </div>
+      <div class="form-row">
+        <label>额度恢复自动启用</label>
+        <input id="s-auto-enable" type="checkbox">
+      </div>
+      <div style="margin-top:16px">
+        <button class="btn btn-primary" onclick="saveSettings()">保存设置</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Container -->
+<div id="modal-container"></div>
+
+</div>
+<script>
+let API_KEY = '';
+const API = (path, opts={}) => fetch(`/api${path}`, {
+  ...opts,
+  headers: { 'Content-Type':'application/json', 'x-api-key': API_KEY, ...(opts.headers||{}) },
+});
+
+// --- Auth ---
+document.getElementById('password-input').addEventListener('keydown', e => {
+  if(e.key==='Enter') doLogin();
+});
+
+async function doLogin() {
+  const pwd = document.getElementById('password-input').value.trim();
+  if(!pwd) return;
+  API_KEY = pwd;
+  try {
+    const r = await API('/settings');
+    const d = await r.json();
+    if(d.success) {
+      document.getElementById('login-page').style.display='none';
+      document.getElementById('app').style.display='block';
+      loadSettings(d.data);
+      refreshAccounts();
+    } else {
+      document.getElementById('login-error').textContent = '密码错误';
+    }
+  } catch(e) {
+    document.getElementById('login-error').textContent = '连接失败: '+e.message;
+  }
+}
+
+function logout() {
+  API_KEY='';
+  document.getElementById('app').style.display='none';
+  document.getElementById('login-page').style.display='flex';
+  document.getElementById('password-input').value='';
+}
+
+// --- Tabs ---
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t=>t.classList.add('hidden'));
+    tab.classList.add('active');
+    document.getElementById('tab-'+tab.dataset.tab).classList.remove('hidden');
+    if(tab.dataset.tab==='keys') refreshKeys();
+    if(tab.dataset.tab==='stats') refreshStats();
+    if(tab.dataset.tab==='logs') refreshLogs();
+  });
+});
+
+// --- Accounts ---
+async function refreshAccounts() {
+  const r = await API('/accounts');
+  const d = await r.json();
+  const tbody = document.getElementById('accounts-tbody');
+  tbody.innerHTML = (d.data||[]).map(a => {
+    const enabled = a.manualEnabled && !a.autoDisabled;
+    const statusBadge = enabled
+      ? '<span class="badge badge-success">已启用</span>'
+      : '<span class="badge badge-danger">'+(a.autoDisabled?'自动禁用':'已禁用')+'</span>';
+    return `<tr>
+      <td><strong>${esc(a.name)}</strong></td>
+      <td>${statusBadge}</td>
+      <td>${a.fillPriority}</td>
+      <td>${a.lastRemainingQuota!==null?a.lastRemainingQuota+'%':'-'}</td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="toggleAccount('${a.id}',${!enabled})">${enabled?'禁用':'启用'}</button>
+        <button class="btn btn-ghost btn-sm" onclick="checkQuota('${a.id}')">查额度</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteAccount('${a.id}','${esc(a.name)}')">删除</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function toggleAccount(id, enable) {
+  await API('/accounts/'+id+'/enabled', { method:'PATCH', body:JSON.stringify({enabled:enable}) });
+  refreshAccounts();
+}
+
+async function deleteAccount(id, name) {
+  if(!confirm('确定删除账号 '+name+' ?')) return;
+  await API('/accounts/'+id, { method:'DELETE' });
+  refreshAccounts();
+}
+
+async function checkQuota(id) {
+  const r = await API('/accounts/'+id+'/check-quota', { method:'POST' });
+  const d = await r.json();
+  alert(JSON.stringify(d, null, 2));
+}
+
+function addAccountByOAuth() {
+  window.open('/api/login-url?callback_url='+encodeURIComponent(location.origin+'/oauth/callback'));
+}
+
+// --- API Keys ---
+async function refreshKeys() {
+  const r = await API('/keys');
+  const d = await r.json();
+  const tbody = document.getElementById('keys-tbody');
+  tbody.innerHTML = (d.data||[]).map(k => `<tr>
+    <td>${esc(k.name)}</td>
+    <td><code>${esc(k.keyPrefix)}</code></td>
+    <td>${k.enabled?'<span class="badge badge-success">启用</span>':'<span class="badge badge-danger">禁用</span>'}</td>
+    <td>${k.totalCalls}</td>
+    <td>${k.lastUsedAt||'-'}</td>
+    <td>
+      <button class="btn btn-ghost btn-sm" onclick="toggleKey('${k.id}',${!k.enabled})">${k.enabled?'禁用':'启用'}</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteKey('${k.id}')">删除</button>
+    </td>
+  </tr>`).join('');
+}
+
+function showCreateKeyModal() {
+  document.getElementById('modal-container').innerHTML = `
+    <div class="modal-overlay" onclick="closeModal(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <h3>创建 API Key</h3>
+        <div class="form-row"><label>名称</label><input id="new-key-name" placeholder="Key 名称"></div>
+        <div class="form-row"><label>允许模型</label><input id="new-key-models" placeholder="* (全部) 或逗号分隔" value="*"></div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" onclick="closeModal()">取消</button>
+          <button class="btn btn-primary" onclick="createKey()">创建</button>
+        </div>
+        <div id="created-key-display"></div>
+      </div>
+    </div>`;
+}
+
+async function createKey() {
+  const name = document.getElementById('new-key-name').value.trim();
+  const models = document.getElementById('new-key-models').value.trim();
+  if(!name) return alert('请输入名称');
+  const r = await API('/keys', { method:'POST', body:JSON.stringify({name, allowedModels:models}) });
+  const d = await r.json();
+  if(d.success && d.data.key) {
+    document.getElementById('created-key-display').innerHTML =
+      '<p style="margin-top:12px;font-size:13px;color:var(--danger)">请立即复制此 Key，关闭后无法再次查看：</p>'+
+      '<div class="key-display copyable" onclick="copyText(this.textContent)">'+esc(d.data.key)+'</div>';
+    refreshKeys();
+  } else {
+    alert(d.message||'创建失败');
+  }
+}
+
+async function toggleKey(id, enable) {
+  await API('/keys/'+id, { method:'PATCH', body:JSON.stringify({enabled:enable}) });
+  refreshKeys();
+}
+
+async function deleteKey(id) {
+  if(!confirm('确定删除此 API Key?')) return;
+  await API('/keys/'+id, { method:'DELETE' });
+  refreshKeys();
+}
+
+function closeModal(e) {
+  if(e && e.target !== e.currentTarget) return;
+  document.getElementById('modal-container').innerHTML = '';
+}
+
+// --- Stats ---
+async function refreshStats() {
+  const r = await API('/stats');
+  const d = await r.json();
+  const s = d.data||{};
+  const t = s.totals||{};
+  const container = document.getElementById('stats-container');
+  container.innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-value">${t.calls||0}</div><div class="stat-label">总调用</div></div>
+      <div class="stat-card"><div class="stat-value">${t.successCalls||0}</div><div class="stat-label">成功</div></div>
+      <div class="stat-card"><div class="stat-value">${t.failedCalls||0}</div><div class="stat-label">失败</div></div>
+      <div class="stat-card"><div class="stat-value">${fmtTokens(t.inputTokens)}</div><div class="stat-label">输入 Token</div></div>
+      <div class="stat-card"><div class="stat-value">${fmtTokens(t.outputTokens)}</div><div class="stat-label">输出 Token</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px">按模型</div>
+      <table><thead><tr><th>模型</th><th>调用</th><th>成功</th><th>输入Token</th><th>输出Token</th></tr></thead>
+      <tbody>${(s.models||[]).map(m=>`<tr><td>${esc(m.name)}</td><td>${m.calls}</td><td>${m.successCalls}</td><td>${fmtTokens(m.inputTokens)}</td><td>${fmtTokens(m.outputTokens)}</td></tr>`).join('')}</tbody></table>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px">按账号</div>
+      <table><thead><tr><th>账号</th><th>调用</th><th>成功</th><th>输入Token</th><th>输出Token</th></tr></thead>
+      <tbody>${(s.accounts||[]).map(a=>`<tr><td>${esc(a.name)}</td><td>${a.calls}</td><td>${a.successCalls}</td><td>${fmtTokens(a.inputTokens)}</td><td>${fmtTokens(a.outputTokens)}</td></tr>`).join('')}</tbody></table>
+    </div>`;
+}
+
+// --- Logs ---
+async function refreshLogs() {
+  const r = await API('/logs?limit=100');
+  const d = await r.json();
+  const tbody = document.getElementById('logs-tbody');
+  tbody.innerHTML = (d.data||[]).map(l => {
+    const ok = l.success;
+    return `<tr>
+      <td style="white-space:nowrap">${esc(l.createdAt||'')}</td>
+      <td>${esc(l.event||'')}</td>
+      <td>${esc(l.accountName||'-')}</td>
+      <td>${esc(l.model||'-')}</td>
+      <td>${ok?'<span class="badge badge-success">OK</span>':'<span class="badge badge-danger">FAIL</span>'}</td>
+      <td>${l.inputTokens}/${l.outputTokens}</td>
+      <td>${l.durationMs}ms</td>
+    </tr>`;
+  }).join('');
+}
+
+// --- Settings ---
+function loadSettings(s) {
+  document.getElementById('s-admin-password').value = s.adminPassword||'';
+  document.getElementById('s-strategy').value = s.apiAccountStrategy||'round_robin';
+  document.getElementById('s-auto-disable').checked = s.autoDisableOnEmptyQuota!==false;
+  document.getElementById('s-auto-enable').checked = s.autoEnableOnRecoveredQuota!==false;
+}
+
+async function saveSettings() {
+  const body = {
+    adminPassword: document.getElementById('s-admin-password').value,
+    apiAccountStrategy: document.getElementById('s-strategy').value,
+    autoDisableOnEmptyQuota: document.getElementById('s-auto-disable').checked,
+    autoEnableOnRecoveredQuota: document.getElementById('s-auto-enable').checked,
+  };
+  const r = await API('/settings', { method:'PATCH', body:JSON.stringify(body) });
+  const d = await r.json();
+  if(d.success) {
+    alert('设置已保存');
+    if(body.adminPassword && body.adminPassword !== API_KEY) {
+      API_KEY = body.adminPassword;
+    }
+  } else {
+    alert(d.message||'保存失败');
+  }
+}
+
+// --- Utils ---
+function esc(s) { const d=document.createElement('div'); d.textContent=String(s||''); return d.innerHTML; }
+function fmtTokens(n) { n=Number(n||0); if(n>=1e6) return (n/1e6).toFixed(1)+'M'; if(n>=1e3) return (n/1e3).toFixed(1)+'K'; return String(n); }
+function copyText(t) { navigator.clipboard.writeText(t).then(()=>alert('已复制')).catch(()=>{}); }
+</script>
+</body>
+</html>

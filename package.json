@@ -1,0 +1,19 @@
+{
+  "name": "accio-worker",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:init": "wrangler d1 execute accio-db --file=./migrations/0001_init.sql",
+    "db:init:local": "wrangler d1 execute accio-db --local --file=./migrations/0001_init.sql"
+  },
+  "dependencies": {
+    "hono": "^4.4.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240529.0",
+    "typescript": "^5.5.0",
+    "wrangler": "^3.60.0"
+  }
+}
