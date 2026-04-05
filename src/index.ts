@@ -57,7 +57,7 @@ const loginLinkHandler = async (c: any) => {
   const callbackUrl = `http://${callbackHost}:${callbackPort}/auth/callback`;
   const client = new AccioClient({
     baseUrl: c.env.ACCIO_BASE_URL || 'https://phoenix-gw.alibaba.com',
-    version: c.env.ACCIO_VERSION || '0.5.4',
+    version: c.env.ACCIO_VERSION || '0.5.6',
   });
   const url = client.buildLoginUrl(callbackUrl);
   return jsonResponse({ success: true, url, callbackUrl });
@@ -100,7 +100,7 @@ app.post('/api/oauth/import-callback', async (c) => {
 
   const client = new AccioClient({
     baseUrl: c.env.ACCIO_BASE_URL || 'https://phoenix-gw.alibaba.com',
-    version: c.env.ACCIO_VERSION || '0.5.4',
+    version: c.env.ACCIO_VERSION || '0.5.6',
   });
 
   const quotaResult = await client.queryQuota(account);
@@ -171,7 +171,7 @@ app.post('/oauth/callback', async (c) => {
 
   const client = new AccioClient({
     baseUrl: c.env.ACCIO_BASE_URL || 'https://phoenix-gw.alibaba.com',
-    version: c.env.ACCIO_VERSION || '0.5.4',
+    version: c.env.ACCIO_VERSION || '0.5.6',
   });
 
   // 导入验证：检查能否获取额度

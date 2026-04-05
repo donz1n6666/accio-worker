@@ -119,7 +119,7 @@ export async function selectProxyAccount(
 ): Promise<SchedulerResult> {
   const client = new AccioClient({
     baseUrl: env.ACCIO_BASE_URL || 'https://phoenix-gw.alibaba.com',
-    version: env.ACCIO_VERSION || '0.5.4',
+    version: env.ACCIO_VERSION || '0.5.6',
   });
 
   const allEnabled = await listEnabledAccounts(env.DB);

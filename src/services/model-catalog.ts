@@ -208,7 +208,7 @@ export async function getModelCatalog(env: Env): Promise<ModelCatalogEntry[]> {
 async function fetchModelCatalogFromUpstream(env: Env): Promise<ModelCatalogEntry[]> {
   const client = new AccioClient({
     baseUrl: env.ACCIO_BASE_URL || 'https://phoenix-gw.alibaba.com',
-    version: env.ACCIO_VERSION || '0.5.4',
+    version: env.ACCIO_VERSION || '0.5.6',
   });
 
   // 用第一个可用账号来查询模型目录

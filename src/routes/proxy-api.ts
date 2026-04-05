@@ -252,13 +252,13 @@ proxyApi.post('/v1/messages', async (c) => {
 
   const client = new AccioClient({
     baseUrl: c.env.ACCIO_BASE_URL || 'https://phoenix-gw.alibaba.com',
-    version: c.env.ACCIO_VERSION || '0.5.4',
+    version: c.env.ACCIO_VERSION || '0.5.6',
   });
 
   const accioBody = buildAccioRequest(body, {
     token: account.access_token,
     utdid: account.utdid,
-    version: c.env.ACCIO_VERSION || '0.5.4',
+    version: c.env.ACCIO_VERSION || '0.5.6',
   });
 
   let upstreamResponse: Response;
@@ -439,13 +439,13 @@ proxyApi.post('/v1/chat/completions', async (c) => {
 
   const client = new AccioClient({
     baseUrl: c.env.ACCIO_BASE_URL || 'https://phoenix-gw.alibaba.com',
-    version: c.env.ACCIO_VERSION || '0.5.4',
+    version: c.env.ACCIO_VERSION || '0.5.6',
   });
 
   const accioBody = buildAccioRequestFromOpenAI(body, {
     token: account.access_token,
     utdid: account.utdid,
-    version: c.env.ACCIO_VERSION || '0.5.4',
+    version: c.env.ACCIO_VERSION || '0.5.6',
   });
 
   let upstreamResponse: Response;
@@ -704,13 +704,13 @@ proxyApi.post('/v1/responses', async (c) => {
 
   const client = new AccioClient({
     baseUrl: c.env.ACCIO_BASE_URL || 'https://phoenix-gw.alibaba.com',
-    version: c.env.ACCIO_VERSION || '0.5.4',
+    version: c.env.ACCIO_VERSION || '0.5.6',
   });
 
   const accioBody = buildAccioRequestFromOpenAI(chatBody, {
     token: account.access_token,
     utdid: account.utdid,
-    version: c.env.ACCIO_VERSION || '0.5.4',
+    version: c.env.ACCIO_VERSION || '0.5.6',
   });
 
   let upstreamResponse: Response;
@@ -888,13 +888,13 @@ proxyApi.post('/v1beta/models/:modelAction', async (c) => {
 
   const client = new AccioClient({
     baseUrl: c.env.ACCIO_BASE_URL || 'https://phoenix-gw.alibaba.com',
-    version: c.env.ACCIO_VERSION || '0.5.4',
+    version: c.env.ACCIO_VERSION || '0.5.6',
   });
 
   const accioBody = buildAccioRequestFromGemini(body, modelName, {
     token: account.access_token,
     utdid: account.utdid,
-    version: c.env.ACCIO_VERSION || '0.5.4',
+    version: c.env.ACCIO_VERSION || '0.5.6',
   });
 
   let upstreamResponse: Response;

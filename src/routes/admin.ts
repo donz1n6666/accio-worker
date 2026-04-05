@@ -148,7 +148,7 @@ admin.post('/accounts/:id/refresh-token', async (c) => {
 
   const client = new AccioClient({
     baseUrl: c.env.ACCIO_BASE_URL || 'https://phoenix-gw.alibaba.com',
-    version: c.env.ACCIO_VERSION || '0.5.4',
+    version: c.env.ACCIO_VERSION || '0.5.6',
   });
 
   const result = await client.refreshToken(account);
@@ -176,7 +176,7 @@ admin.post('/accounts/:id/activate', async (c) => {
 
   const client = new AccioClient({
     baseUrl: c.env.ACCIO_BASE_URL || 'https://phoenix-gw.alibaba.com',
-    version: c.env.ACCIO_VERSION || '0.5.4',
+    version: c.env.ACCIO_VERSION || '0.5.6',
   });
 
   const result = await client.activateAccount(account);
@@ -189,7 +189,7 @@ admin.post('/accounts/:id/check-quota', async (c) => {
 
   const client = new AccioClient({
     baseUrl: c.env.ACCIO_BASE_URL || 'https://phoenix-gw.alibaba.com',
-    version: c.env.ACCIO_VERSION || '0.5.4',
+    version: c.env.ACCIO_VERSION || '0.5.6',
   });
 
   const result = await client.queryQuota(account);

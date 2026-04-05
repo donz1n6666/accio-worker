@@ -21,7 +21,7 @@ id = "REPLACE_WITH_YOUR_KV_ID"
 # ---- 环境变量 ----
 [vars]
 ACCIO_BASE_URL = "https://phoenix-gw.alibaba.com"
-ACCIO_VERSION = "0.5.4"
+ACCIO_VERSION = "0.5.6"
 ADMIN_PASSWORD = "admin"
 
 # ---- 静态资源作为文本模块导入 ----
