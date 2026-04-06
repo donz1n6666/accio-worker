@@ -316,6 +316,7 @@ async function refreshAccounts() {
       <td>
         <button class="btn btn-ghost btn-sm" onclick="toggleAccount('${a.id}',${!enabled})">${enabled?'禁用':'启用'}</button>
         <button class="btn btn-ghost btn-sm" onclick="checkQuota('${a.id}')">查额度</button>
+        <a class="btn btn-ghost btn-sm" href="/api/accounts/${a.id}/switch" target="_blank" rel="noreferrer">切换账号</a>
         <button class="btn btn-danger btn-sm" onclick="deleteAccount('${a.id}','${esc(a.name)}')">删除</button>
       </td>
     </tr>`;

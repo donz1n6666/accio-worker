@@ -170,6 +170,30 @@ admin.post('/accounts/:id/refresh-token', async (c) => {
   return jsonResponse({ success: true, message: 'Token 已刷新' });
 });
 
+// ---- 切换账号（重定向到本地回调地址） ----
+
+admin.get('/accounts/:id/switch', async (c) => {
+  const account = await getAccount(c.env.DB, c.req.param('id'));
+  if (!account) return jsonResponse({ success: false, message: '账号不存在' }, 404);
+
+  if (!account.access_token) {
+    return jsonResponse({ success: false, message: '账号缺少 accessToken' }, 400);
+  }
+
+  const callbackHost = c.env.ACCIO_CALLBACK_HOST || '127.0.0.1';
+  const callbackPort = c.env.ACCIO_CALLBACK_PORT || '4097';
+  const callbackUrl = `http://${callbackHost}:${callbackPort}/auth/callback`;
+
+  const params = new URLSearchParams();
+  params.set('accessToken', account.access_token);
+  if (account.refresh_token) params.set('refreshToken', account.refresh_token);
+  if (account.expires_at !== null) params.set('expiresAt', String(account.expires_at));
+  if (account.cookie) params.set('cookie', account.cookie);
+
+  const targetUrl = `${callbackUrl}?${params.toString()}`;
+  return c.redirect(targetUrl, 307);
+});
+
 admin.post('/accounts/:id/activate', async (c) => {
   const account = await getAccount(c.env.DB, c.req.param('id'));
   if (!account) return jsonResponse({ success: false, message: '账号不存在' }, 404);
